@@ -17,14 +17,19 @@
 
 package org.pentaho.ui.xul.util;
 
+import java.io.FileNotFoundException;
 import java.io.InputStream;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Display;
+import org.pentaho.ui.svg.SvgImage;
+import org.pentaho.ui.svg.SvgSupport;
 import org.pentaho.ui.xul.XulDomContainer;
+import org.pentaho.ui.xul.swt.svg.SwtSvgRenderer;
 
 public class SwtXulUtil {
 
@@ -42,7 +47,27 @@ public class SwtXulUtil {
       img = JFaceResources.getImageRegistry().get( src );
     }
 
+    if ( img == null && SvgSupport.isSvgEnabled() && SvgSupport.isSvgName( src ) ) {
+      InputStream in = null;
+      try {
+        in = XulUtil.loadResourceAsStream( src, container );
+        if ( in != null ) {
+          SvgImage svg = SvgSupport.loadSvgImage( in );
+          img = SwtSvgRenderer.renderToBitmap( display, svg );
+          JFaceResources.getImageRegistry().put( src, img );
+        }
+      } catch ( FileNotFoundException ex ) {
+        // just skip for PNG
+      } catch ( Exception e ) {
+        logger.error( "Error loading " + src, e );
+      } finally {
+        IOUtils.closeQuietly( in );
+      }
+    }
     if ( img == null ) {
+      if ( SvgSupport.isSvgName( src ) ) {
+        src = SvgSupport.toPngName( src );
+      }
       InputStream in = null;
       try {
         in = XulUtil.loadResourceAsStream( src, container );
@@ -51,16 +76,12 @@ public class SwtXulUtil {
           JFaceResources.getImageRegistry().put( src, img );
         }
       } catch ( Exception e ) {
-        logger.error( e );
+        logger.error( "Error loading " + src, e );
       } finally {
-        try {
-          in.close();
-        } catch ( Exception ignored ) {
-        }
+        IOUtils.closeQuietly( in );
       }
     }
 
     return img;
   }
-
 }
